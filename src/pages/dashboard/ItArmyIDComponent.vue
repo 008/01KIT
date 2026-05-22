@@ -1,0 +1,93 @@
+<template>
+  <q-card flat bordered class="row bg-transparent full-height items-stretch" style="height: 100%;">
+    <div class="stat-icon-box">
+      <q-icon name="fa-solid fa-user"></q-icon>
+    </div>
+    <div class="col q-pa-sm">
+      <div class="text-caption text-uppercase text-bold text-grey">
+        IT Army ({{ configDetails }})
+
+        <q-icon
+          name="info"
+          size="20px"
+          style="margin-bottom: 2px"
+          color="negative"
+          v-if="ITArmyNameLoadError != ''"
+          ><q-tooltip> {{ ITArmyNameLoadError }} </q-tooltip></q-icon
+        >
+
+        <q-icon
+          name="info"
+          size="20px"
+          style="margin-bottom: 2px"
+          color="info"
+          v-if="ITArmyAPIKeyEmpty"
+          ><q-tooltip>
+            {{ $t("dashboard.itarmyAPIKeyEmpty") }}
+          </q-tooltip></q-icon
+        >
+      </div>
+      <div class="text-subtitle1 text-bold">{{ name }} {{ uuid }}</div>
+    </div>
+  </q-card>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref, watch } from 'vue'
+import { useItArmyStats } from 'src/composables/useItArmyStats'
+
+const configDetails = ref('ID + API KEY')
+const name = ref('')
+const uuid = ref('NOT CONFIGURED')
+
+const ITArmyNameLoadError = ref('')
+const ITArmyAPIKeyEmpty = ref(false)
+const { login, error, apiKeyEmpty, hasData } = useItArmyStats()
+
+async function loadId () {
+  const settings = await window.settingsAPI.get()
+  if (settings.itarmy.uuid !== '') {
+    uuid.value = settings.itarmy.uuid
+    uuid.value =
+      uuid.value.substr(0, 1) +
+      '...' +
+      uuid.value.substr(uuid.value.length - 3, uuid.value.length)
+  }
+
+  if (settings.itarmy.uuid !== '' && settings.itarmy.apiKey !== '') {
+    configDetails.value = 'ID + API KEY'
+  } else if (settings.itarmy.uuid !== '') {
+    configDetails.value = 'ID'
+  } else if (settings.itarmy.apiKey !== '') {
+    configDetails.value = 'API KEY'
+  } else {
+    configDetails.value = 'NOT CONFIGURED'
+  }
+}
+
+onMounted(async () => {
+  await loadId()
+})
+
+watch([login, error, apiKeyEmpty, hasData], () => {
+  if (hasData.value) {
+    name.value = login.value
+    ITArmyAPIKeyEmpty.value = false
+    ITArmyNameLoadError.value = ''
+    return
+  }
+
+  if (apiKeyEmpty.value) {
+    name.value = ''
+    ITArmyAPIKeyEmpty.value = true
+    ITArmyNameLoadError.value = ''
+    return
+  }
+
+  if (error.value !== '') {
+    name.value = ''
+    ITArmyAPIKeyEmpty.value = false
+    ITArmyNameLoadError.value = error.value
+  }
+}, { immediate: true })
+</script>

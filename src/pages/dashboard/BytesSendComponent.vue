@@ -1,0 +1,90 @@
+<template>
+  <q-card flat bordered class="row bg-transparent full-height items-stretch" style="height: 100%;">
+    <div class="stat-icon-box">
+      <q-icon name="fa-solid fa-arrow-up"></q-icon>
+    </div>
+    <div class="col q-pa-sm">
+      <div class="text-caption text-uppercase text-bold text-grey">
+        {{ $t("dashboard.bytes") }}
+        <q-icon name="info" size="20px" style="margin-bottom: 3px"
+          ><q-tooltip style="width: 400px">
+            {{ $t("dashboard.bytesHint") }}</q-tooltip
+          ></q-icon
+        >
+      </div>
+      <div class="text-subtitle1 text-bold">
+        {{ humanBytesString(totalBytesSend) }} | {{ humanBytesString(bps) }}/s |
+        {{
+          totalStatisticsAvailable
+            ? `${humanBytesString(totalBytesSendFromAllTools)}`
+            : ""
+        }}
+      </div>
+    </div>
+  </q-card>
+</template>
+
+<script lang="ts" setup>
+import {
+  ModuleExecutionStatisticsEventData
+} from 'app/lib/module/module'
+import { IpcRendererEvent } from 'electron'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useItArmyStats } from 'src/composables/useItArmyStats'
+
+const totalBytesSend = ref(0)
+const bps = ref(0)
+
+function humanBytesString (bytes: number, dp = 1) {
+  const thresh = 1024 // 1024 instead of 1000 to be consistent with other places
+
+  if (Math.abs(bytes) < thresh) {
+    return bytes + ' B'
+  }
+
+  const units = ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+  let u = -1
+  const r = 10 ** dp
+
+  do {
+    bytes /= thresh
+    ++u
+  } while (
+    Math.round(Math.abs(bytes) * r) / r >= thresh &&
+    u < units.length - 1
+  )
+
+  return bytes.toFixed(dp) + ' ' + units[u]
+}
+
+function onStatisticsUpdate (
+  _e: IpcRendererEvent,
+  data: ModuleExecutionStatisticsEventData
+) {
+  totalBytesSend.value += data.bytesSend
+  bps.value = data.currentSendBitrate
+}
+
+async function loadLastStatistics () {
+  const state = await window.executionEngineAPI.getState()
+  totalBytesSend.value = state.statisticsTotals.totalBytesSent
+  if (state.statistics.length > 0) {
+    const lastStatistics = state.statistics[state.statistics.length - 1]
+    bps.value = lastStatistics.currentSendBitrate
+  }
+}
+
+const {
+  totalTraffic: totalBytesSendFromAllTools,
+  hasData: totalStatisticsAvailable
+} = useItArmyStats()
+
+onMounted(async () => {
+  await loadLastStatistics()
+  window.executionEngineAPI.listenForStatistics(onStatisticsUpdate)
+})
+
+onUnmounted(() => {
+  window.executionEngineAPI.stopListeningForStatistics(onStatisticsUpdate)
+})
+</script>

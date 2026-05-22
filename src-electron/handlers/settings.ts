@@ -1,0 +1,757 @@
+import { join as joinPath } from 'path'
+import { app, ipcMain } from 'electron'
+import { promises as fsPromises, readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs'
+import EventEmitter from 'events'
+import { SID } from 'app/lib/activeness/api'
+import { writeFileAtomicWithBackup } from 'app/lib/utils/atomicFile'
+import type { ExecutionEngine } from './engine'
+
+export interface ScheduleInterval {
+  startTime: string
+  endTime: string
+  days: number[]
+  module: 'DISTRESS' | 'MHDDOS_PROXY'
+}
+
+export interface SettingsData {
+  system: {
+    autoUpdate: boolean
+    hideInTray: boolean
+    startOnBoot: boolean
+    language: 'en-US' | 'ua-UA' | 'de-DE'
+  }
+  modules: {
+    dataPath: string
+  }
+  schedule: {
+    enabled: boolean
+    startTime: string
+    endTime: string
+    activity: 'DO_NOTHING' | 'MINIMAL'
+    modules: Array<'DISTRESS' | 'MHDDOS_PROXY'>
+    intervals: ScheduleInterval[]
+  }
+  itarmy: {
+    uuid: string
+    apiKey: string
+  }
+  bootstrap: {
+    step: 'LANGUAGE' | 'DATA_FOLDER' | 'MODULES_CONFIGURATION' | 'ITARMY_UUID' | 'DONE'
+    selectedModulesConfig: 'NONE' | 'GOVERNMENT_AGENCY' | 'WORK' | 'HOME'
+  }
+  gui: {
+    theme: string
+    mode: string
+    unlockedModes: string[]
+    lastSeenAppVersion: string
+  }
+  activeness: {
+    sid?: SID
+    score: number
+  }
+  execution: {
+    moduleToRun?: 'DISTRESS' | 'MHDDOS_PROXY'
+  }
+}
+
+export type SettingsChangedEventHandler = (newData: SettingsData) => void
+
+function parseTimeToMinutes (time: string): number | null {
+  const parts = time.split(':')
+  if (parts.length !== 2) {
+    return null
+  }
+  const hours = Number(parts[0])
+  const minutes = Number(parts[1])
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return null
+  }
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null
+  }
+  return hours * 60 + minutes
+}
+
+function validateScheduleIntervalsNoOverlap (intervals: ScheduleInterval[]) {
+  const segmentsByDay = new Map<number, Array<{ start: number, end: number }>>()
+  for (let day = 0; day <= 6; day++) {
+    segmentsByDay.set(day, [])
+  }
+
+  for (const interval of intervals) {
+    const start = parseTimeToMinutes(interval.startTime)
+    const end = parseTimeToMinutes(interval.endTime)
+    if (start === null || end === null) {
+      throw new Error(`Invalid interval time format: ${interval.startTime}-${interval.endTime}`)
+    }
+
+    const days = Array.from(new Set((interval.days || []).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)))
+    for (const day of days) {
+      if (start === end) {
+        segmentsByDay.get(day)?.push({ start: 0, end: 1440 })
+        continue
+      }
+
+      if (start < end) {
+        segmentsByDay.get(day)?.push({ start, end })
+        continue
+      }
+
+      segmentsByDay.get(day)?.push({ start, end: 1440 })
+      const nextDay = (day + 1) % 7
+      segmentsByDay.get(nextDay)?.push({ start: 0, end })
+    }
+  }
+
+  for (let day = 0; day <= 6; day++) {
+    const daySegments = segmentsByDay.get(day) || []
+    daySegments.sort((a, b) => a.start - b.start)
+    for (let i = 1; i < daySegments.length; i++) {
+      const prev = daySegments[i - 1]
+      const current = daySegments[i]
+      if (current.start < prev.end) {
+        throw new Error('Schedule intervals must not overlap')
+      }
+    }
+  }
+}
+
+export class Settings {
+  private static profileDir = joinPath(app.getPath('appData'), 'ITArmyKitProfile')
+  private static settingsFile = joinPath(Settings.profileDir, 'settings.json')
+  private static settingsBackupFile = joinPath(Settings.profileDir, 'settings.json.bak')
+  private static settingsTempFile = joinPath(Settings.profileDir, 'settings.json.tmp')
+
+  private data: SettingsData = this.createDefaultData()
+
+  private loaded = false
+
+  private settingsChangedEmiter = new EventEmitter()
+
+  private createDefaultData (): SettingsData {
+    return {
+      system: {
+        autoUpdate: true,
+        hideInTray: false,
+        startOnBoot: false,
+        language: 'en-US'
+      },
+      modules: {
+        dataPath: joinPath(app.getPath('appData'), 'ITArmyKitProfile', 'modules')
+      },
+      schedule: {
+        enabled: false,
+        startTime: '07:30',
+        endTime: '17:30',
+        activity: 'DO_NOTHING',
+        modules: ['DISTRESS'],
+        intervals: [
+          {
+            startTime: '07:30',
+            endTime: '17:30',
+            days: [0, 1, 2, 3, 4, 5, 6],
+            module: 'DISTRESS'
+          }
+        ]
+      },
+      itarmy: {
+        uuid: '',
+        apiKey: ''
+      },
+      bootstrap: {
+        step: 'LANGUAGE',
+        selectedModulesConfig: 'NONE'
+      },
+      gui: {
+        theme: 'light',
+        mode: 'default',
+        unlockedModes: [],
+        lastSeenAppVersion: app.getVersion()
+      },
+      activeness: {
+        score: 0
+      },
+      execution: {}
+    }
+  }
+
+  private async removeProfileArtifacts () {
+    const removablePaths = [
+      Settings.settingsBackupFile,
+      Settings.settingsTempFile,
+      joinPath(Settings.profileDir, 'engine.state.json'),
+      joinPath(Settings.profileDir, 'engine.state.json.bak'),
+      joinPath(Settings.profileDir, 'engine.state.json.tmp'),
+      joinPath(Settings.profileDir, 'stability.log'),
+      joinPath(Settings.profileDir, 'stability.log.1')
+    ]
+
+    for (const targetPath of removablePaths) {
+      try {
+        await fsPromises.rm(targetPath, { force: true })
+      } catch (error) {
+        const code = (error as { code?: string }).code
+        if (code !== 'ENOENT' && code !== 'EBUSY' && code !== 'EPERM') {
+          throw error
+        }
+      }
+    }
+  }
+
+  async getData () {
+    if (!this.loaded) {
+      await this.load()
+    }
+    return this.data
+  }
+
+  getDataSync () {
+    if (!this.loaded) {
+      this.loadSync()
+    }
+    return this.data
+  }
+
+  async deleteData () {
+    await this.deleteModulesData()
+    app.setLoginItemSettings({
+      openAtLogin: false
+    })
+    this.data = this.createDefaultData()
+    this.loaded = true
+    await fsPromises.mkdir(Settings.profileDir, { recursive: true })
+    await this.removeProfileArtifacts()
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async save () {
+    await writeFileAtomicWithBackup({
+      targetPath: Settings.settingsFile,
+      tempPath: Settings.settingsTempFile,
+      backupPath: Settings.settingsBackupFile,
+      data: JSON.stringify(this.data)
+    })
+  }
+
+  private applyLoadBackwardsCompatibility (fromExistingSettings: boolean) {
+    if (this.data.itarmy === undefined) {
+      this.data.itarmy = {
+        uuid: '',
+        apiKey: ''
+      }
+    }
+
+    if (this.data.itarmy.apiKey === undefined) {
+      this.data.itarmy.apiKey = ''
+    }
+
+    if (this.data.system.language === undefined) {
+      this.data.system.language = 'en-US'
+    }
+    if (!['en-US', 'ua-UA', 'de-DE'].includes(this.data.system.language)) {
+      this.data.system.language = 'en-US'
+    }
+
+    if (this.data.bootstrap === undefined) {
+      this.data.bootstrap = {
+        step: 'DONE',
+        selectedModulesConfig: 'NONE'
+      }
+    }
+
+    if (this.data.gui === undefined) {
+      this.data.gui = {
+        theme: 'light',
+        mode: 'default',
+        unlockedModes: [],
+        lastSeenAppVersion: app.getVersion()
+      }
+    }
+
+    const legacyGui = this.data.gui as Partial<{
+      theme: string
+      mode: string
+      unlockedModes: string[]
+      lastSeenAppVersion: string
+      darkMode: boolean
+      matrixMode: boolean
+      matrixModeUnlocked: boolean
+    }>
+    const currentAppVersion = app.getVersion()
+    const previousAppVersion = typeof legacyGui.lastSeenAppVersion === 'string' ? legacyGui.lastSeenAppVersion : ''
+
+    if (typeof legacyGui.theme !== 'string') {
+      legacyGui.theme = legacyGui.darkMode ? 'dark' : 'light'
+    }
+    if (typeof legacyGui.mode !== 'string') {
+      legacyGui.mode = legacyGui.matrixMode ? 'matrix' : 'default'
+    }
+    if (!Array.isArray(legacyGui.unlockedModes)) {
+      legacyGui.unlockedModes = legacyGui.matrixModeUnlocked ? ['matrix'] : []
+    }
+    if (fromExistingSettings && currentAppVersion === '1.6.3' && previousAppVersion !== currentAppVersion) {
+      legacyGui.mode = 'easter'
+    }
+    legacyGui.lastSeenAppVersion = currentAppVersion
+
+    this.data.gui = {
+      theme: legacyGui.theme,
+      mode: legacyGui.mode,
+      unlockedModes: Array.from(new Set(legacyGui.unlockedModes.filter((mode): mode is string => typeof mode === 'string'))),
+      lastSeenAppVersion: legacyGui.lastSeenAppVersion
+    }
+
+    if (this.data.schedule === undefined) {
+      this.data.schedule = {
+        enabled: false,
+        startTime: '07:30',
+        endTime: '17:30',
+        activity: 'DO_NOTHING',
+        modules: ['DISTRESS'],
+        intervals: [
+          {
+            startTime: '07:30',
+            endTime: '17:30',
+            days: [0, 1, 2, 3, 4, 5, 6],
+            module: 'DISTRESS'
+          }
+        ]
+      }
+    }
+    if (typeof this.data.schedule.enabled !== 'boolean') {
+      this.data.schedule.enabled = false
+    }
+    if (typeof this.data.schedule.startTime !== 'string') {
+      this.data.schedule.startTime = '07:30'
+    }
+    if (typeof this.data.schedule.endTime !== 'string') {
+      this.data.schedule.endTime = '17:30'
+    }
+    if (this.data.schedule.activity !== 'DO_NOTHING' && this.data.schedule.activity !== 'MINIMAL') {
+      this.data.schedule.activity = 'DO_NOTHING'
+    }
+
+    if (!Array.isArray(this.data.schedule.modules)) {
+      this.data.schedule.modules = ['DISTRESS']
+    }
+    if (!Array.isArray(this.data.schedule.intervals)) {
+      this.data.schedule.intervals = []
+    }
+    if (this.data.schedule.intervals.length === 0) {
+      this.data.schedule.intervals = [
+        {
+          startTime: this.data.schedule.startTime || '07:30',
+          endTime: this.data.schedule.endTime || '17:30',
+          days: [0, 1, 2, 3, 4, 5, 6],
+          module: 'DISTRESS'
+        }
+      ]
+    }
+    this.data.schedule.intervals = this.data.schedule.intervals
+      .filter((interval: unknown) => Boolean(interval) && typeof interval === 'object')
+      .map((interval: unknown) => {
+        const typedInterval = interval as Partial<ScheduleInterval>
+        const startTime = typeof typedInterval.startTime === 'string' ? typedInterval.startTime : '07:30'
+        const endTime = typeof typedInterval.endTime === 'string' ? typedInterval.endTime : '17:30'
+        const days = Array.isArray(typedInterval.days)
+          ? typedInterval.days
+            .map((day) => Number(day))
+            .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+          : [0, 1, 2, 3, 4, 5, 6]
+        const module = typedInterval.module === 'MHDDOS_PROXY' ? 'MHDDOS_PROXY' : 'DISTRESS'
+        return {
+          startTime,
+          endTime,
+          days: Array.from(new Set(days)),
+          module
+        }
+      })
+
+    if (this.data.activeness === undefined) {
+      this.data.activeness = {
+        score: 0
+      }
+    }
+
+    if (typeof this.data.activeness.score !== 'number' || Number.isNaN(this.data.activeness.score)) {
+      this.data.activeness.score = 0
+    }
+
+    if (this.data.execution === undefined) {
+      this.data.execution = {}
+    }
+  }
+
+  async load () {
+    try {
+      this.data = JSON.parse(await fsPromises.readFile(Settings.settingsFile, 'utf-8'))
+      this.applyLoadBackwardsCompatibility(true)
+    } catch {
+      try {
+        this.data = JSON.parse(await fsPromises.readFile(Settings.settingsBackupFile, 'utf-8'))
+        this.applyLoadBackwardsCompatibility(true)
+        await this.save()
+      } catch {
+        this.data = this.createDefaultData()
+        await this.save()
+      }
+    }
+    this.loaded = true
+  }
+
+  loadSync () {
+    try {
+      this.data = JSON.parse(readFileSync(Settings.settingsFile, 'utf-8'))
+      this.applyLoadBackwardsCompatibility(true)
+    } catch {
+      try {
+        this.data = JSON.parse(readFileSync(Settings.settingsBackupFile, 'utf-8'))
+        this.applyLoadBackwardsCompatibility(true)
+        mkdirSync(Settings.profileDir, { recursive: true })
+        writeFileSync(Settings.settingsFile, JSON.stringify(this.data))
+      } catch {
+        this.data = this.createDefaultData()
+        mkdirSync(Settings.profileDir, { recursive: true })
+        writeFileSync(Settings.settingsFile, JSON.stringify(this.data))
+      }
+    }
+    this.loaded = true
+  }
+
+  onSettingsChanged (handler: SettingsChangedEventHandler) {
+    this.settingsChangedEmiter.on('settingsChanged', handler)
+  }
+
+  async setSystemAutoUpdate (data: SettingsData['system']['autoUpdate']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.system.autoUpdate = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setSystemHideInTray (data: SettingsData['system']['hideInTray']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.system.hideInTray = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setSystemStartOnBoot (data: SettingsData['system']['startOnBoot']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    app.setLoginItemSettings({
+      openAtLogin: data
+    })
+
+    this.data.system.startOnBoot = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setSystemLanguage (data: SettingsData['system']['language']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.system.language = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setModulesDataPath (data: SettingsData['modules']['dataPath']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.modules.dataPath = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async promptForModulesDataPath () {
+    const dialog = (await import('electron')).dialog
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    if (canceled) {
+      return
+    }
+
+    const newFolderPath = filePaths[0]
+    await this.setModulesDataPath(newFolderPath)
+  }
+
+  async openModulesDataFolder () {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    const { shell } = await import('electron')
+    await shell.openPath(this.data.modules.dataPath)
+  }
+
+  async deleteModulesData () {
+    if (existsSync(this.data.modules.dataPath)) {
+      await fsPromises.rm(this.data.modules.dataPath, { recursive: true, force: true })
+    }
+  }
+
+  async setItArmyUUID (data: SettingsData['itarmy']['uuid']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.itarmy.uuid = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setItArmyApiKey (data: SettingsData['itarmy']['apiKey']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.itarmy.apiKey = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setBootstrapStep (data: SettingsData['bootstrap']['step']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.bootstrap.step = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setBootstrapSelectedModulesConfig (data: SettingsData['bootstrap']['selectedModulesConfig']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.bootstrap.selectedModulesConfig = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setGuiTheme (data: SettingsData['gui']['theme']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.gui.theme = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setGuiMode (data: SettingsData['gui']['mode']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.gui.mode = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setGuiUnlockedModes (data: SettingsData['gui']['unlockedModes']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.gui.unlockedModes = Array.from(new Set(data.filter((mode): mode is string => typeof mode === 'string')))
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setActivenessSID (data: SettingsData['activeness']['sid']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    if (data === undefined) {
+      delete this.data.activeness.sid
+    } else {
+      this.data.activeness.sid = data
+    }
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setActivenessScore (data: SettingsData['activeness']['score']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.activeness.score = Math.max(0, data)
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setExecutionModuleToRun (data: SettingsData['execution']['moduleToRun']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.execution.moduleToRun = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setScheduleEnabled (data: SettingsData['schedule']['enabled']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.schedule.enabled = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setScheduleStartTime (data: SettingsData['schedule']['startTime']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.schedule.startTime = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setScheduleEndTime (data: SettingsData['schedule']['endTime']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.schedule.endTime = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setScheduleModules (data: SettingsData['schedule']['modules']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    this.data.schedule.modules = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+
+  async setScheduleIntervals (data: SettingsData['schedule']['intervals']) {
+    if (!this.loaded) {
+      await this.load()
+    }
+
+    validateScheduleIntervalsNoOverlap(data)
+    this.data.schedule.intervals = data
+    await this.save()
+    this.settingsChangedEmiter.emit('settingsChanged', this.data)
+  }
+}
+
+export function handleSettings (settings: Settings, executionEngine: ExecutionEngine) {
+  ipcMain.handle('settings:get', async () => {
+    return await settings.getData()
+  })
+
+  ipcMain.handle('settings:deleteData', async () => {
+    await executionEngine.stopModule()
+    await settings.deleteData()
+    app.relaunch()
+    app.exit()
+  })
+
+  ipcMain.handle('settings:system:autoUpdate', async (_e, data: SettingsData['system']['autoUpdate']) => {
+    await settings.setSystemAutoUpdate(data)
+  })
+
+  ipcMain.handle('settings:system:hideInTray', async (_e, data: SettingsData['system']['hideInTray']) => {
+    await settings.setSystemHideInTray(data)
+  })
+
+  ipcMain.handle('settings:system:startOnBoot', async (_e, data: SettingsData['system']['startOnBoot']) => {
+    await settings.setSystemStartOnBoot(data)
+  })
+
+  ipcMain.handle('settings:system:language', async (_e, data: SettingsData['system']['language']) => {
+    await settings.setSystemLanguage(data)
+  })
+
+  ipcMain.handle('settings:modules:dataPath', async (_e, data: SettingsData['modules']['dataPath']) => {
+    await settings.setModulesDataPath(data)
+  })
+
+  ipcMain.handle('settings:modules:promptForDataPath', async () => {
+    await settings.promptForModulesDataPath()
+  })
+
+  ipcMain.handle('settings:modules:openDataFolder', async () => {
+    await settings.openModulesDataFolder()
+  })
+
+  ipcMain.handle('settings:modules:deleteData', async () => {
+    await settings.deleteModulesData()
+    app.relaunch()
+    app.exit()
+  })
+
+  ipcMain.handle('settings:itarmy:uuid', async (_e, data: SettingsData['itarmy']['uuid']) => {
+    await settings.setItArmyUUID(data)
+  })
+
+  ipcMain.handle('settings:itarmy:apiKey', async (_e, data: SettingsData['itarmy']['apiKey']) => {
+    await settings.setItArmyApiKey(data)
+  })
+
+  ipcMain.handle('settings:bootstrap:step', async (_e, data: SettingsData['bootstrap']['step']) => {
+    await settings.setBootstrapStep(data)
+  })
+
+  ipcMain.handle('settings:bootstrap:selectedModulesConfig', async (_e, data: SettingsData['bootstrap']['selectedModulesConfig']) => {
+    await settings.setBootstrapSelectedModulesConfig(data)
+  })
+
+  ipcMain.handle('settings:gui:theme', async (_e, data: SettingsData['gui']['theme']) => {
+    await settings.setGuiTheme(data)
+  })
+
+  ipcMain.handle('settings:gui:mode', async (_e, data: SettingsData['gui']['mode']) => {
+    await settings.setGuiMode(data)
+  })
+
+  ipcMain.handle('settings:gui:unlockedModes', async (_e, data: SettingsData['gui']['unlockedModes']) => {
+    await settings.setGuiUnlockedModes(data)
+  })
+
+  ipcMain.handle('settings:schedule:enabled', async (_e, data: SettingsData['schedule']['enabled']) => {
+    await settings.setScheduleEnabled(data)
+  })
+
+  ipcMain.handle('settings:schedule:startTime', async (_e, data: SettingsData['schedule']['startTime']) => {
+    await settings.setScheduleStartTime(data)
+  })
+
+  ipcMain.handle('settings:schedule:endTime', async (_e, data: SettingsData['schedule']['endTime']) => {
+    await settings.setScheduleEndTime(data)
+  })
+
+  ipcMain.handle('settings:schedule:modules', async (_e, data: SettingsData['schedule']['modules']) => {
+    await settings.setScheduleModules(data)
+  })
+
+  ipcMain.handle('settings:schedule:intervals', async (_e, data: SettingsData['schedule']['intervals']) => {
+    await settings.setScheduleIntervals(data)
+  })
+}
