@@ -26,12 +26,20 @@ jobs:
       - name: Build Linux binaries
         run: |
           yarn quasar build --mode electron --publish never -T linux --icon=/src-electron/icons/icon.png
-      - name: Upload artifacts
+      - name: Upload Linux installers
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: itarmykit-${{ runner.os }}
-          path: dist/electron/Packaged/**
+          name: itarmykit-linux
+          compression-level: 0
+          if-no-files-found: warn
+          path: |
+            dist/electron/Packaged/*.AppImage
+            dist/electron/Packaged/*.deb
+            dist/electron/Packaged/*.rpm
+            dist/electron/Packaged/*.snap
+            dist/electron/Packaged/*.blockmap
+            dist/electron/Packaged/latest*.yml
   build_for_windows_x64:
     name: Build for windows
     runs-on: windows-2022
@@ -56,12 +64,19 @@ jobs:
       - name: Build Windows binaries
         run: |
           yarn quasar build --mode electron --publish never -T win32 --icon=/src-electron/icons/icon.ico
-      - name: Upload artifacts
+      - name: Upload Windows installers
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: itarmykit-${{ runner.os }}
-          path: dist/electron/Packaged/**
+          name: itarmykit-windows
+          compression-level: 0
+          if-no-files-found: warn
+          path: |
+            dist/electron/Packaged/*.exe
+            dist/electron/Packaged/*.msi
+            dist/electron/Packaged/*.nsis.7z
+            dist/electron/Packaged/*.blockmap
+            dist/electron/Packaged/latest*.yml
   build_for_macos_14:
     name: Build for MacOS-14
     runs-on: macos-14
@@ -83,10 +98,17 @@ jobs:
       - name: Build MacOS-14 binaries
         run: |
           yarn quasar build --mode electron --publish never -T darwin --icon=/src-electron/icons/icon.icns
-      - name: Upload artifacts
+      - name: Upload MacOS installers
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: itarmykit-${{ runner.os }}
-          path: dist/electron/Packaged/**
+          name: itarmykit-macos
+          compression-level: 0
+          if-no-files-found: warn
+          path: |
+            dist/electron/Packaged/*.dmg
+            dist/electron/Packaged/*.zip
+            dist/electron/Packaged/*.pkg
+            dist/electron/Packaged/*.blockmap
+            dist/electron/Packaged/latest*.yml
 
