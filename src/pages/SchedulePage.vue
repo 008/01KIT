@@ -168,7 +168,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ModuleName } from 'app/lib/module/module'
-import { Platform, useQuasar } from 'quasar'
+import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -193,8 +193,7 @@ function cloneIntervals (items: ScheduleInterval[]): ScheduleInterval[] {
 }
 
 const moduleOptions = [
-  { label: 'DISTRESS', value: 'DISTRESS' as ModuleName },
-  ...(Platform.is.mac ? [] : [{ label: 'MHDDOS_PROXY', value: 'MHDDOS_PROXY' as ModuleName }])
+  { label: 'MHDDOS_PROXY', value: 'MHDDOS_PROXY' as ModuleName }
 ]
 const dayOptions = [
   { label: t('schedule.days.sun'), value: 0 },

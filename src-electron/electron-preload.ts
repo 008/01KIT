@@ -19,7 +19,6 @@
  * Avoid re-introducing legacy Electron patterns such as remote access or broad Node exposure.
  */
 
-import type { Config as DistressConfig } from 'app/lib/module/distress'
 import type { Config as MHDDOSProxyConfig } from 'app/lib/module/mhddosproxy'
 import type { InstallProgress, ModuleExecutionStatisticsEventData, ModuleName, Version } from 'app/lib/module/module'
 import type { IpcRendererEvent } from 'electron'
@@ -37,7 +36,7 @@ import type {
 } from '../lib/activeness/api'
 import type { GetUserStatsResponse as GetITArmyUserStatsResponse } from '../lib/itarmy/api'
 
-type ModuleConfig = DistressConfig | MHDDOSProxyConfig
+type ModuleConfig = MHDDOSProxyConfig
 type RendererListener<T> = (_e: IpcRendererEvent, data: T) => void
 
 type ListenerRegistryEntry = {

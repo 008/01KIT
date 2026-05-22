@@ -10,7 +10,6 @@ const routes: RouteRecordRaw[] = [
 
       { path: '/modules/active', name: 'modules_active', component: () => import('pages/modules/ActiveModulePage.vue') },
       { path: '/modules/mhddosproxy', name: 'modules_mhddosproxy', component: () => import('pages/modules/mhddosproxyPage.vue') },
-      { path: '/modules/distress', name: 'modules_distress', component: () => import('pages/modules/distressPage.vue') },
 
       { path: '/activeness', name: 'activeness', component: () => import('pages/activeness/ActivenessPage.vue') },
 

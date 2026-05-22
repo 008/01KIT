@@ -39,20 +39,6 @@
       >
         MHDDOS PROXY
       </div>
-      <div
-        :class="
-          'text-subtitle2 q-pl-xs ' +
-          (isPageActive('modules_distress')
-            ? $q.dark.isActive
-              ? 'bg-black'
-              : 'bg-grey-4'
-            : 'selectable_menu')
-        "
-        style="border-bottom: solid #ccc 1px"
-        @click="goToPage('modules_distress')"
-      >
-        DISTRESS
-      </div>
     </q-card-section>
   </q-card>
 </template>

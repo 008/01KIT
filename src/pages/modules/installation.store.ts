@@ -13,7 +13,7 @@ export const useModulesInstallationStore = defineStore('modulesInstallation', {
     progress: 0,
     errorCode: 'OK' as InstallationErrorCodes,
     errorMessage: '',
-    installingModule: 'DISTRESS' as ModuleName,
+    installingModule: 'MHDDOS_PROXY' as ModuleName,
     installingTag: ''
   }),
   getters: {

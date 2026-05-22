@@ -28,7 +28,7 @@ interface ExecutionLogEntry {
   moduleName: ModuleName;
 }
 
-const selectedModule = ref('DISTRESS' as ModuleName | null)
+const selectedModule = ref('MHDDOS_PROXY' as ModuleName | null)
 const moduleEnabled = ref(false)
 
 const displayMessage = computed(() => {

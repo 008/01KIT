@@ -67,7 +67,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ModuleExecutionStatisticsEventData } from 'app/lib/module/module'
+import { ModuleExecutionStatisticsEventData, ModuleName } from 'app/lib/module/module'
 import { IpcRendererEvent } from 'electron'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
@@ -81,7 +81,7 @@ const BITRATE_SMOOTH_ALPHA = 0.55 // higher = closer to raw value
 
 interface ExecutionLogEntry {
   type: 'STARTED' | 'STOPPED' | 'ERROR';
-  moduleName: 'DISTRESS' | 'MHDDOS_PROXY';
+  moduleName: ModuleName;
   timestamp: number;
 }
 

@@ -1,9 +1,8 @@
-import { Distress, Config as DistressConfig } from 'app/lib/module/distress'
 import { MHDDOSProxy, Config as MHDDOSProxyConfig } from 'app/lib/module/mhddosproxy'
 import { ModuleName, Module } from 'app/lib/module/module'
 import { IpcMainInvokeEvent, ipcMain } from 'electron'
 
-export function handleModules (modules: Array<Distress | MHDDOSProxy>) {
+export function handleModules (modules: Array<MHDDOSProxy>) {
   ipcMain.handle('modules:getAllVersions', async (_e, moduleName: ModuleName) => {
     const module = modules.find((candidate) => candidate.name === moduleName)
     if (!module) {
@@ -50,7 +49,7 @@ export function handleModules (modules: Array<Distress | MHDDOSProxy>) {
     return await module.getConfig()
   })
 
-  ipcMain.handle('modules:setConfig', async (_e, moduleName: ModuleName, config: DistressConfig | MHDDOSProxyConfig) => {
+  ipcMain.handle('modules:setConfig', async (_e, moduleName: ModuleName, config: MHDDOSProxyConfig) => {
     const module = modules.find((candidate) => candidate.name === moduleName)
     if (!module) {
       throw new Error(`Module ${moduleName} not found`)

@@ -10,7 +10,7 @@ import { electronNetDownloadFile, electronNetFetch } from '../utils/electronNet'
 import { terminateChildProcess } from '../utils/processControl'
 import { writeStabilityLog } from '../utils/stabilityLog'
 
-export type ModuleName = 'DISTRESS' | 'MHDDOS_PROXY'
+export type ModuleName = 'MHDDOS_PROXY'
 
 export interface Version {
   tag: string;

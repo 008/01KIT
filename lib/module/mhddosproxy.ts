@@ -1,5 +1,7 @@
-import { execFileSync, spawn } from 'child_process'
-import { Module, Version, InstallProgress, InstallationTarget, BaseConfig, ModuleName } from './module'
+﻿import { execFileSync, spawn } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import { Module, Version, InstallProgress, InstallationTarget, BaseConfig, ModuleName, InstallationErrorCodes } from './module'
 import { getCPUArchitecture } from './archLib'
 import { convertTrafficValueToBytes } from '../utils/trafficUnits'
 
@@ -7,6 +9,65 @@ export interface Config extends BaseConfig {
   copies: number;
   threads: number;
   useMyIP: number;
+}
+
+type SupportedPlatform = 'linux' | 'win32' | 'darwin'
+type SupportedArch = 'x64' | 'arm64' | 'ia32'
+
+interface ModuleBinaryAsset {
+  executableName: string
+  downloadUrl: string
+}
+
+const MHDDOS_PROXY_RELEASE_BASE_URL = 'https://github.com/porthole-ascend-cinnamon/mhddos_proxy_releases/releases/latest/download'
+
+const MHDDOS_PROXY_DOWNLOAD_ASSETS: Readonly<Record<SupportedPlatform, Partial<Record<SupportedArch, ModuleBinaryAsset>>>> = {
+  linux: {
+    x64: {
+      executableName: 'mhddos_proxy_linux',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux`
+    },
+    arm64: {
+      executableName: 'mhddos_proxy_linux_arm64',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux_arm64`
+    },
+    ia32: {
+      executableName: 'mhddos_proxy_linux_x86',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux_x86`
+    }
+  },
+  win32: {
+    x64: {
+      executableName: 'mhddos_proxy_win.exe',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_win.exe`
+    },
+    ia32: {
+      executableName: 'mhddos_proxy_win_x86.exe',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_win_x86.exe`
+    }
+  },
+  darwin: {
+    x64: {
+      executableName: 'mhddos_proxy_macos',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos`
+    },
+    arm64: {
+      executableName: 'mhddos_proxy_macos_arm64',
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos_arm64`
+    }
+  }
+}
+
+function isSupportedPlatform (platform: NodeJS.Platform): platform is SupportedPlatform {
+  return platform === 'linux' || platform === 'win32' || platform === 'darwin'
+}
+
+function resolveAssetFor (platform: NodeJS.Platform, arch: SupportedArch): ModuleBinaryAsset | null {
+  if (!isSupportedPlatform(platform)) {
+    return null
+  }
+
+  return MHDDOS_PROXY_DOWNLOAD_ASSETS[platform][arch] ?? null
 }
 
 // eslint-disable-next-line no-control-regex
@@ -124,7 +185,9 @@ export class MHDDOSProxy extends Module<Config> {
       { arch: 'arm64', platform: 'linux' },
       { arch: 'ia32', platform: 'linux' },
       { arch: 'x64', platform: 'win32' },
-      { arch: 'ia32', platform: 'win32' }
+      { arch: 'ia32', platform: 'win32' },
+      { arch: 'x64', platform: 'darwin' },
+      { arch: 'arm64', platform: 'darwin' }
     ]
   }
 
@@ -139,27 +202,55 @@ export class MHDDOSProxy extends Module<Config> {
   }
 
   override async getAllVersions (): Promise<Version[]> {
-    return await this.loadVersionsFromGithub('porthole-ascend-cinnamon', 'mhddos_proxy_releases')
+    const defaultTag = 'latest'
+    const installDirectory = await this.getInstallationDirectory()
+    const installed = await fs.promises.access(path.join(installDirectory, defaultTag))
+      .then(() => true)
+      .catch(() => false)
+
+    return [{
+      tag: defaultTag,
+      name: 'Latest',
+      body: 'Installed from direct hardcoded release URL.',
+      installed
+    }]
   }
 
-  private assetMapping = [
-    { name: 'mhddos_proxy_linux', arch: 'x64', platform: 'linux' },
-    { name: 'mhddos_proxy_linux_arm64', arch: 'arm64', platform: 'linux' },
-    { name: 'mhddos_proxy_linux_x86', arch: 'ia32', platform: 'linux' },
-    { name: 'mhddos_proxy_win.exe', arch: 'x64', platform: 'win32' },
-    { name: 'mhddos_proxy_win_x86.exe', arch: 'ia32', platform: 'win32' }
-  ] as Array<{
-    name: string;
-    arch: 'x64' | 'arm64' | 'ia32';
-    platform: 'linux' | 'win32' | 'darwin';
-  }>
-
   override async *installVersion (versionTag: string): AsyncGenerator<InstallProgress, void, void> {
-    const progressGenerator = this.installVersionFromGithub('porthole-ascend-cinnamon', 'mhddos_proxy_releases', versionTag, this.assetMapping)
-
-    for await (const progress of progressGenerator) {
-      yield progress
+    const asset = resolveAssetFor(process.platform, getCPUArchitecture())
+    if (!asset) {
+      yield {
+        stage: 'FAILED',
+        progress: 0,
+        errorCode: InstallationErrorCodes.UNSUPPORTED_PLATFORM,
+        errorMessage: `Your architecture is "${getCPUArchitecture()}" and platform "${process.platform}" which is not supported.`
+      }
+      return
     }
+
+    const installDirectory = await this.getInstallationDirectory()
+    const cacheDirectory = await this.getCacheDirectory()
+    const tempDownoloadPath = path.join(cacheDirectory, asset.executableName)
+
+    try {
+      for await (const progress of this.downloadFile(asset.downloadUrl, tempDownoloadPath)) {
+        yield { stage: 'DOWNLOADING', progress: progress.progress }
+      }
+    } catch (err) {
+      yield { stage: 'FAILED', progress: 0, errorCode: InstallationErrorCodes.UNKNOWN, errorMessage: `Cant download release asset file: ${err}` }
+      return
+    }
+
+    yield { stage: 'EXTRACTING', progress: 0 }
+    try {
+      await this.extractArchive(tempDownoloadPath, path.join(installDirectory, versionTag))
+    } catch (err) {
+      yield { stage: 'FAILED', progress: 0, errorCode: InstallationErrorCodes.UNKNOWN, errorMessage: `Cant extract archive: ${err}` }
+      return
+    }
+
+    yield { stage: 'VALIDATING', progress: 0 }
+    yield { stage: 'DONE', progress: 0 }
   }
 
   override executableOutputToString (data: Buffer) {
@@ -167,13 +258,7 @@ export class MHDDOSProxy extends Module<Config> {
   }
 
   async killProcessesOnWindows (): Promise<void> {
-    let filename = 'mhddos_proxy_win.exe'
-    for (const asset of this.assetMapping) {
-      if (asset.arch === getCPUArchitecture() && asset.platform === process.platform) {
-        filename = asset.name
-        break
-      }
-    }
+    const filename = resolveAssetFor('win32', getCPUArchitecture())?.executableName ?? 'mhddos_proxy_win.exe'
 
     await new Promise<void>((resolve) => {
       const handler = spawn('taskkill', ['/F', '/T', '/IM', filename], { windowsHide: true })
@@ -196,10 +281,12 @@ export class MHDDOSProxy extends Module<Config> {
       return false
     }
 
+    const filename = resolveAssetFor('win32', getCPUArchitecture())?.executableName ?? 'mhddos_proxy_win.exe'
+
     try {
       const output = execFileSync(
         'tasklist',
-        ['/FI', 'IMAGENAME eq mhddos_proxy_win.exe', '/FO', 'CSV', '/NH'],
+        ['/FI', `IMAGENAME eq ${filename}`, '/FO', 'CSV', '/NH'],
         {
           windowsHide: true,
           encoding: 'utf8'
@@ -278,15 +365,12 @@ export class MHDDOSProxy extends Module<Config> {
     args.push(...removeCustomLanguageArguments(config.executableArguments.filter((arg) => arg !== '')))
     args.push('--lang', lang)
 
-    let filename = 'mhddos_proxy_linux'
-    for (const asset of this.assetMapping) {
-      if (asset.arch === getCPUArchitecture() && asset.platform === process.platform) {
-        filename = asset.name
-        break
-      }
+    const currentAsset = resolveAssetFor(process.platform, getCPUArchitecture())
+    if (!currentAsset) {
+      throw new Error(`Unsupported platform ${process.platform} and architecture ${getCPUArchitecture()} for MHDDOS_PROXY`)
     }
 
-    const handler = await this.startExecutable(filename, args)
+    const handler = await this.startExecutable(currentAsset.executableName, args)
     if (process.platform === 'win32') {
       this.startWorkerMonitor()
     }

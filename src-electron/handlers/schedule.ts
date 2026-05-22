@@ -36,10 +36,6 @@ function getPreviousWeekDay (day: number): number {
 }
 
 function isIntervalActive (now: Date, interval: ScheduleInterval): boolean {
-  if (process.platform === 'darwin' && interval.module === 'MHDDOS_PROXY') {
-    return false
-  }
-
   const startMinutes = parseTime(interval.startTime)
   const endMinutes = parseTime(interval.endTime)
   if (startMinutes === null || endMinutes === null) {

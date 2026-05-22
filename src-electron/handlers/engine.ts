@@ -4,7 +4,6 @@ import { WebContents, app, ipcMain } from 'electron'
 import { Settings } from './settings'
 import { Mutex } from 'async-mutex'
 
-import { Distress } from 'app/lib/module/distress'
 import { MHDDOSProxy } from 'app/lib/module/mhddosproxy'
 import {
   ModuleExecutionErrorEventData,
@@ -63,13 +62,13 @@ export class ExecutionEngine {
   private static stateBackupFilePath = path.join(app.getPath('appData'), 'ITArmyKitProfile', 'engine.state.json.bak')
   private static stateTempFilePath = path.join(app.getPath('appData'), 'ITArmyKitProfile', 'engine.state.json.tmp')
 
-  private modules: Array<Distress | MHDDOSProxy> = []
-  private runningModule: Distress | MHDDOSProxy | null
+  private modules: Array<MHDDOSProxy> = []
+  private runningModule: MHDDOSProxy | null
   private state?: State
   private settings: Settings
   private stateLock: Mutex = new Mutex()
 
-  constructor (modules: Array<Distress | MHDDOSProxy>, settings: Settings) {
+  constructor (modules: Array<MHDDOSProxy>, settings: Settings) {
     this.modules = modules
     this.settings = settings
     this.runningModule = null
@@ -484,7 +483,7 @@ export class ExecutionEngine {
   }
 }
 
-export function handleExecutionEngine (modules: Array<Distress | MHDDOSProxy>, settings: Settings): ExecutionEngine {
+export function handleExecutionEngine (modules: Array<MHDDOSProxy>, settings: Settings): ExecutionEngine {
   const engine = new ExecutionEngine(modules, settings)
   const disableSchedulerForManualControl = async () => {
     const currentSettings = await settings.getData()

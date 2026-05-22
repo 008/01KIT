@@ -70,7 +70,7 @@ import { IpcRendererEvent } from 'electron'
 
 const moduleEnabled = ref(false)
 const selectedModule = ref(null as ModuleName | null)
-const availableModules = ref(['DISTRESS', 'MHDDOS_PROXY'] as ModuleName[])
+const availableModules = ref(['MHDDOS_PROXY'] as ModuleName[])
 
 const executionLog = ref('')
 const stdOUT = ref('')

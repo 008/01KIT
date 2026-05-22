@@ -1,4 +1,3 @@
-import { Distress } from 'app/lib/module/distress'
 import { MHDDOSProxy } from 'app/lib/module/mhddosproxy'
 import { handleModules } from './modules'
 import { handleExecutionEngine } from './engine'
@@ -27,7 +26,6 @@ function initMainProcessContext (): MainProcessContext {
 
   const settings = new Settings()
   const modules = [
-    new Distress(settings),
     new MHDDOSProxy(settings)
   ]
 

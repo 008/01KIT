@@ -76,20 +76,6 @@ export default {
       threadsDescription: 'Die Anzahl der gestarteten Threads pro Prozess. 0 f\u00fcr Auto',
       useMyIp: 'Meine IP benutzen',
       useMyIpDescription: 'Der Prozentanteil der Verwendung Ihrer eigenen IP-Adresse oder VPN, wenn konfiguriert'
-    },
-    distress: {
-      concurrency: 'Nebenl\u00e4ufigkeit',
-      concurrencyDescription: 'Die Anzahl der Aufgabenersteller. 0 setzt Standardwert auf 4096 ',
-      torConnections: 'Tor-Verbindungen',
-      torConnectionsDescription: 'Tor-Verbindungen f\u00fcr den Angriff verwenden',
-      useMyIp: 'Meine IP benutzen',
-      useMyIpDescription: 'Der Prozentanteil der Verwendung Ihrer eigenen IP-Adresse oder VPN, wenn konfiguriert',
-      UDPFlood: 'UDP-Flood deaktivieren',
-      UDPFloodDescription: 'UDP-Flood-Angriff verbieten. Funktioniert nur mit Ihrer eigenen IP-Adresse',
-      ICMPFlood: 'ICMP-Flood aktivieren',
-      ICMPFloodDescription: 'ICMP-Flood-Angriff erlauben. Funktioniert nur mit Ihrer eigenen IP-Adresse',
-      PACKETFlood: 'PACKET-Flood aktivieren',
-      PACKETFloodDescription: 'Funktioniert nicht unter OS Windows! PACKET-Flood-Angriff erlauben. Funktioniert nur mit Ihrer eigenen IP-Adresse'
     }
   },
   top: {

@@ -10,7 +10,7 @@ export interface ScheduleInterval {
   startTime: string
   endTime: string
   days: number[]
-  module: 'DISTRESS' | 'MHDDOS_PROXY'
+  module: 'MHDDOS_PROXY'
 }
 
 export interface SettingsData {
@@ -28,7 +28,7 @@ export interface SettingsData {
     startTime: string
     endTime: string
     activity: 'DO_NOTHING' | 'MINIMAL'
-    modules: Array<'DISTRESS' | 'MHDDOS_PROXY'>
+    modules: Array<'MHDDOS_PROXY'>
     intervals: ScheduleInterval[]
   }
   itarmy: {
@@ -50,7 +50,7 @@ export interface SettingsData {
     score: number
   }
   execution: {
-    moduleToRun?: 'DISTRESS' | 'MHDDOS_PROXY'
+    moduleToRun?: 'MHDDOS_PROXY'
   }
 }
 
@@ -144,13 +144,13 @@ export class Settings {
         startTime: '07:30',
         endTime: '17:30',
         activity: 'DO_NOTHING',
-        modules: ['DISTRESS'],
+        modules: ['MHDDOS_PROXY'],
         intervals: [
           {
             startTime: '07:30',
             endTime: '17:30',
             days: [0, 1, 2, 3, 4, 5, 6],
-            module: 'DISTRESS'
+            module: 'MHDDOS_PROXY'
           }
         ]
       },
@@ -308,13 +308,13 @@ export class Settings {
         startTime: '07:30',
         endTime: '17:30',
         activity: 'DO_NOTHING',
-        modules: ['DISTRESS'],
+        modules: ['MHDDOS_PROXY'],
         intervals: [
           {
             startTime: '07:30',
             endTime: '17:30',
             days: [0, 1, 2, 3, 4, 5, 6],
-            module: 'DISTRESS'
+            module: 'MHDDOS_PROXY'
           }
         ]
       }
@@ -333,7 +333,11 @@ export class Settings {
     }
 
     if (!Array.isArray(this.data.schedule.modules)) {
-      this.data.schedule.modules = ['DISTRESS']
+      this.data.schedule.modules = ['MHDDOS_PROXY']
+    }
+    this.data.schedule.modules = this.data.schedule.modules.filter((module): module is 'MHDDOS_PROXY' => module === 'MHDDOS_PROXY')
+    if (this.data.schedule.modules.length === 0) {
+      this.data.schedule.modules = ['MHDDOS_PROXY']
     }
     if (!Array.isArray(this.data.schedule.intervals)) {
       this.data.schedule.intervals = []
@@ -344,7 +348,7 @@ export class Settings {
           startTime: this.data.schedule.startTime || '07:30',
           endTime: this.data.schedule.endTime || '17:30',
           days: [0, 1, 2, 3, 4, 5, 6],
-          module: 'DISTRESS'
+          module: 'MHDDOS_PROXY'
         }
       ]
     }
@@ -359,7 +363,7 @@ export class Settings {
             .map((day) => Number(day))
             .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
           : [0, 1, 2, 3, 4, 5, 6]
-        const module = typedInterval.module === 'MHDDOS_PROXY' ? 'MHDDOS_PROXY' : 'DISTRESS'
+        const module: 'MHDDOS_PROXY' = 'MHDDOS_PROXY'
         return {
           startTime,
           endTime,
@@ -380,6 +384,10 @@ export class Settings {
 
     if (this.data.execution === undefined) {
       this.data.execution = {}
+    }
+
+    if (this.data.execution.moduleToRun !== undefined && this.data.execution.moduleToRun !== 'MHDDOS_PROXY') {
+      this.data.execution.moduleToRun = 'MHDDOS_PROXY'
     }
   }
 

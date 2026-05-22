@@ -46,7 +46,6 @@ async function getDevelopersFromGithub (): Promise<Contributor[]> {
   const itkitContributors = await fetchContributors('it-army-ua-scripts/itarmykit')
   const db1000nContributors = await fetchContributors('arriven/db1000n')
   const mhddosProxyContributors = await fetchContributors('porthole-ascend-cinnamon/mhddos_proxy_releases')
-  const distressContributors = await fetchContributors('Yneth/distress-releases')
   const ADSSContributors = await fetchContributors('it-army-ua-scripts/ADSS')
 
   const contributors = itkitContributors
@@ -67,15 +66,6 @@ async function getDevelopersFromGithub (): Promise<Contributor[]> {
       existingContributor.contributions += mhddosProxyContributor.contributions
     } else {
       contributors.push(mhddosProxyContributor)
-    }
-  }
-
-  for (const distressContributor of distressContributors) {
-    const existingContributor = contributors.find(c => c.login === distressContributor.login)
-    if (existingContributor) {
-      existingContributor.contributions += distressContributor.contributions
-    } else {
-      contributors.push(distressContributor)
     }
   }
 
