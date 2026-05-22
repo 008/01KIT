@@ -1,6 +1,6 @@
 import { electronNetFetch } from '../utils/electronNet'
 
-const BASE_URL = 'https://itautools.de/api
+const BASE_URL = 'https://itautools.de/api'
 
 export interface UserStats {
     login: string
