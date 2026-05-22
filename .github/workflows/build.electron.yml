@@ -64,18 +64,36 @@ jobs:
       - name: Build Windows binaries
         run: |
           yarn quasar build --mode electron --publish never -T win32 --icon=/src-electron/icons/icon.ico
-      - name: Upload Windows installers
+      - name: Upload Windows x64 installer
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: itarmykit-windows
+          name: itarmykit-windows-x64
           compression-level: 0
           if-no-files-found: warn
           path: |
-            dist/electron/Packaged/*.exe
-            dist/electron/Packaged/*.msi
-            dist/electron/Packaged/*.nsis.7z
-            dist/electron/Packaged/*.blockmap
+            dist/electron/Packaged/*-win-x64.exe
+            dist/electron/Packaged/*-win-x64.exe.blockmap
+
+      - name: Upload Windows arm64 installer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: itarmykit-windows-arm64
+          compression-level: 0
+          if-no-files-found: warn
+          path: |
+            dist/electron/Packaged/*-win-arm64.exe
+            dist/electron/Packaged/*-win-arm64.exe.blockmap
+
+      - name: Upload Windows update metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: itarmykit-windows-metadata
+          compression-level: 0
+          if-no-files-found: warn
+          path: |
             dist/electron/Packaged/latest*.yml
   build_for_macos_14:
     name: Build for MacOS-14
