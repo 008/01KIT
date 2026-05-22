@@ -3,8 +3,12 @@ name: Build and publish electron app
 on:
   push:
     branches:
+      - main
       - master
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build_for_linux:
@@ -25,7 +29,7 @@ jobs:
       - name: Build and release Linux binaries
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
         run: |
           yarn quasar build --mode electron --publish always -T linux --icon=/src-electron/icons/icon.png
   build_for_windows_x64:
@@ -52,7 +56,7 @@ jobs:
       - name: Build and release Windows binaries 
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
         run: |
           yarn quasar build --mode electron --publish always -T win32 --icon=/src-electron/icons/icon.ico
   build_for_macos_14:
@@ -76,8 +80,7 @@ jobs:
       - name: Build and release MacOS-14 binaries
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
         run: |
           yarn quasar build --mode electron --publish always -T darwin --icon=/src-electron/icons/icon.icns
-
 
