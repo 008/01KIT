@@ -238,12 +238,7 @@ module.exports = configure(function (/* ctx */) {
         },
 
         artifactName: '$' + '{name}-$' + '{os}-$' + '{arch}.$' + '{ext}',
-        appId: 'itarmykit',
-
-        publish: {
-          provider: 'github',
-          releaseType: 'prerelease'
-        }
+        appId: 'itarmykit'
       }
     },
 
