@@ -26,12 +26,18 @@ jobs:
           rm -rf dist/
           corepack enable
           yarn install --frozen-lockfile
-      - name: Build and release Linux binaries
+      - name: Build and release Linux binaries (publish when PAT present)
+        if: ${{ secrets.GH_ACCESS_TOKEN != '' }}
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           yarn quasar build --mode electron --publish always -T linux --icon=/src-electron/icons/icon.png
+
+      - name: Build Linux binaries (skip publish)
+        if: ${{ secrets.GH_ACCESS_TOKEN == '' }}
+        run: |
+          yarn quasar build --mode electron --publish never -T linux --icon=/src-electron/icons/icon.png
   build_for_windows_x64:
     name: Build for windows
     runs-on: windows-2022
@@ -53,12 +59,18 @@ jobs:
           Invoke-WebRequest -Uri "https://aka.ms/vc14/vc_redist.arm64.exe" -OutFile "vc_redist.arm64.exe"
           if (!(Test-Path "vc_redist.x64.exe")) { throw "vc_redist.x64.exe download failed" }
           if (!(Test-Path "vc_redist.arm64.exe")) { throw "vc_redist.arm64.exe download failed" }
-      - name: Build and release Windows binaries 
+      - name: Build and release Windows binaries (publish when PAT present)
+        if: ${{ secrets.GH_ACCESS_TOKEN != '' }}
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           yarn quasar build --mode electron --publish always -T win32 --icon=/src-electron/icons/icon.ico
+
+      - name: Build Windows binaries (skip publish)
+        if: ${{ secrets.GH_ACCESS_TOKEN == '' }}
+        run: |
+          yarn quasar build --mode electron --publish never -T win32 --icon=/src-electron/icons/icon.ico
   build_for_macos_14:
     name: Build for MacOS-14
     runs-on: macos-14
@@ -77,10 +89,16 @@ jobs:
       - name: dmg-license add
         run: |
           sudo npm install -g dmg-license
-      - name: Build and release MacOS-14 binaries
+      - name: Build and release MacOS-14 binaries (publish when PAT present)
+        if: ${{ secrets.GH_ACCESS_TOKEN != '' }}
         env:
           EP_GH_IGNORE_TIME: true
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           yarn quasar build --mode electron --publish always -T darwin --icon=/src-electron/icons/icon.icns
+
+      - name: Build MacOS-14 binaries (skip publish)
+        if: ${{ secrets.GH_ACCESS_TOKEN == '' }}
+        run: |
+          yarn quasar build --mode electron --publish never -T darwin --icon=/src-electron/icons/icon.icns
 
