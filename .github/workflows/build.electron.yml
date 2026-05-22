@@ -25,7 +25,7 @@ jobs:
           yarn install --frozen-lockfile
       - name: Build Linux binaries
         run: |
-          yarn quasar build --mode electron -T linux --icon=/src-electron/icons/icon.png
+          yarn quasar build --mode electron --publish never -T linux --icon=/src-electron/icons/icon.png
   build_for_windows_x64:
     name: Build for windows
     runs-on: windows-2022
@@ -49,7 +49,7 @@ jobs:
           if (!(Test-Path "vc_redist.arm64.exe")) { throw "vc_redist.arm64.exe download failed" }
       - name: Build Windows binaries
         run: |
-          yarn quasar build --mode electron -T win32 --icon=/src-electron/icons/icon.ico
+          yarn quasar build --mode electron --publish never -T win32 --icon=/src-electron/icons/icon.ico
   build_for_macos_14:
     name: Build for MacOS-14
     runs-on: macos-14
@@ -70,5 +70,5 @@ jobs:
           sudo npm install -g dmg-license
       - name: Build MacOS-14 binaries
         run: |
-          yarn quasar build --mode electron -T darwin --icon=/src-electron/icons/icon.icns
+          yarn quasar build --mode electron --publish never -T darwin --icon=/src-electron/icons/icon.icns
 
