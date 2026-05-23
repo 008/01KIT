@@ -195,7 +195,7 @@ export class MHDDOSProxy extends Module<Config> {
   protected override get defaultConfig (): Config {
     return {
       autoUpdate: true,
-      executableArguments: [],
+      executableArguments: ['--per-target'],
       copies: 1,
       threads: 128,
       useMyIP: 0
