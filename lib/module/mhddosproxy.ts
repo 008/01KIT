@@ -388,10 +388,26 @@ export class MHDDOSProxy extends Module<Config> {
         statisticsBuffer = lines.pop() as string
       }
 
+      const DEBUG_MHDDOS = process.env.MHDDOS_PROXY_DEBUG === '1' || process.env.ITARMYKIT_DEBUG === '1'
+
       for (const line of lines) {
-        try {
-          const normalizedLine = normalizeForMatch(line)
-          const metrics = parseLabeledMetrics(line)
+          try {
+            const normalizedLine = normalizeForMatch(line)
+            const metrics = parseLabeledMetrics(line)
+
+            if (DEBUG_MHDDOS) {
+              try {
+                const metricsArray = Array.from(metrics.entries())
+                const sig = lang === 'ua' ? LINE_SIGNATURES.ua : lang === 'de' ? LINE_SIGNATURES.de : LINE_SIGNATURES.en
+                const reqLabels = lang === 'ua' ? REQUIRED_METRIC_LABELS.ua : lang === 'de' ? REQUIRED_METRIC_LABELS.de : REQUIRED_METRIC_LABELS.en
+                const signatureOk = hasLineSignature(normalizedLine, sig)
+                const requiredOk = hasRequiredMetrics(metrics, reqLabels)
+                // eslint-disable-next-line no-console
+                console.log(`[MHDDOSProxy:DEBUG] normalized='${normalizedLine}', signatureOk=${signatureOk}, requiredOk=${requiredOk}, metrics=${JSON.stringify(metricsArray)}`)
+              } catch (err) {
+                // ignore debug errors
+              }
+            }
           if (lang === 'ua') {
             if (!hasLineSignature(normalizedLine, LINE_SIGNATURES.ua) || !hasRequiredMetrics(metrics, REQUIRED_METRIC_LABELS.ua)) {
               continue
