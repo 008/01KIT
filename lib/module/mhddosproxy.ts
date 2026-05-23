@@ -59,7 +59,8 @@ const MHDDOS_PROXY_DOWNLOAD_ASSETS: Readonly<Record<SupportedPlatform, Partial<R
 }
 
 function isSupportedPlatform (platform: NodeJS.Platform): platform is SupportedPlatform {
-  return platform === 'linux' || platform === 'win32' || platform === 'darwin'
+  return platform === 'linux' || platform === 'win32' 
+  // || platform === 'darwin'
 }
 
 function resolveAssetFor (platform: NodeJS.Platform, arch: SupportedArch): ModuleBinaryAsset | null {
@@ -178,16 +179,16 @@ export class MHDDOSProxy extends Module<Config> {
   private workerMonitorInterval?: ReturnType<typeof setInterval>
 
   public override get name (): ModuleName { return 'MHDDOS_PROXY' }
-  public override get homeURL (): string { return 'https://github.com/porthole-ascend-cinnamon/mhddos_proxy_releases' }
+  public override get homeURL (): string { return 'https://github.com/' }
   public override get supportedInstallationTargets (): Array<InstallationTarget> {
     return [
       { arch: 'x64', platform: 'linux' },
       { arch: 'arm64', platform: 'linux' },
       { arch: 'ia32', platform: 'linux' },
       { arch: 'x64', platform: 'win32' },
-      { arch: 'ia32', platform: 'win32' },
-      { arch: 'x64', platform: 'darwin' },
-      { arch: 'arm64', platform: 'darwin' }
+      { arch: 'ia32', platform: 'win32' }
+      // { arch: 'x64', platform: 'darwin' },
+      // { arch: 'arm64', platform: 'darwin' }
     ]
   }
 
@@ -196,7 +197,7 @@ export class MHDDOSProxy extends Module<Config> {
       autoUpdate: true,
       executableArguments: [],
       copies: 1,
-      threads: 8192,
+      threads: 128,
       useMyIP: 0
     }
   }

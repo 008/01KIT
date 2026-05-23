@@ -7,8 +7,6 @@
             <div class="row text-h5 text-bold">MHDDOS PROXY</div>
             <q-separator />
             <div class="row col q-pt-sm">
-                <div class="col-12 q-pt-xs"><span class="text-subtitle2">Author: <a class="text-primary cursor-pointer" href="https://github.com/porthole-ascend-cinnamon" target="_blank">porthole-ascend-cinnamon</a></span></div>
-                <div class="col-12 q-pt-xs"><span class="text-subtitle2">Repository: <a class="text-primary" href="https://github.com/porthole-ascend-cinnamon/mhddos_proxy_releases" target="_blank">https://github.com/porthole-ascend-cinnamon/mhddos_proxy_releases</a></span> </div>
                 <div class="col-12 q-pt-xs"><span class="text-subtitle2">Support: <a class="text-primary" href="https://t.me/+H6PnjkydZX0xNDky" target="_blank">IT Army Chat</a></span> </div>
 
                 <div class="col-12 q-pt-xs"><span class="text-subtitle2">Author readme: </span> Own proxy database creates the attack from the whole world, which makes it much more difficult to protect against.</div>

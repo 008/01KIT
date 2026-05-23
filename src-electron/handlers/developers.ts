@@ -45,7 +45,7 @@ async function fetchContributors (repo: string): Promise<Contributor[]> {
 async function getDevelopersFromGithub (): Promise<Contributor[]> {
   const itkitContributors = await fetchContributors('it-army-ua-scripts/itarmykit')
   const db1000nContributors = await fetchContributors('arriven/db1000n')
-  const mhddosProxyContributors = await fetchContributors('porthole-ascend-cinnamon/mhddos_proxy_releases')
+  const mhddosProxyContributors = await fetchContributors('')
   const ADSSContributors = await fetchContributors('it-army-ua-scripts/ADSS')
 
   const contributors = itkitContributors
