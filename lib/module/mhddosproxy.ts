@@ -4,6 +4,7 @@ import path from 'path'
 import { Module, Version, InstallProgress, InstallationTarget, BaseConfig, ModuleName, InstallationErrorCodes } from './module'
 import { getCPUArchitecture } from './archLib'
 import { convertTrafficValueToBytes } from '../utils/trafficUnits'
+import { writeStabilityLog } from '../utils/stabilityLog'
 
 export interface Config extends BaseConfig {
   copies: number;
@@ -388,7 +389,19 @@ export class MHDDOSProxy extends Module<Config> {
         statisticsBuffer = lines.pop() as string
       }
 
-      const DEBUG_MHDDOS = process.env.MHDDOS_PROXY_DEBUG === '1' || process.env.ITARMYKIT_DEBUG === '1'
+      let DEBUG_MHDDOS = process.env.MHDDOS_PROXY_DEBUG === '1' || process.env.ITARMYKIT_DEBUG === '1'
+      try {
+        const electronModule = require('electron') as { app?: { getPath: (name: string) => string } }
+        const appDataPath = electronModule.app?.getPath('appData')
+        if (appDataPath) {
+          const debugFile = path.join(appDataPath, 'ITArmyKitProfile', 'mhddos_debug')
+          if (fs.existsSync(debugFile)) {
+            DEBUG_MHDDOS = true
+          }
+        }
+      } catch {
+        // ignore
+      }
 
       for (const line of lines) {
           try {
@@ -402,8 +415,14 @@ export class MHDDOSProxy extends Module<Config> {
                 const reqLabels = lang === 'ua' ? REQUIRED_METRIC_LABELS.ua : lang === 'de' ? REQUIRED_METRIC_LABELS.de : REQUIRED_METRIC_LABELS.en
                 const signatureOk = hasLineSignature(normalizedLine, sig)
                 const requiredOk = hasRequiredMetrics(metrics, reqLabels)
+                const debugEntry = { normalized: normalizedLine, signatureOk, requiredOk, metrics: metricsArray }
                 // eslint-disable-next-line no-console
-                console.log(`[MHDDOSProxy:DEBUG] normalized='${normalizedLine}', signatureOk=${signatureOk}, requiredOk=${requiredOk}, metrics=${JSON.stringify(metricsArray)}`)
+                console.log(`[MHDDOSProxy:DEBUG] ${JSON.stringify(debugEntry)}`)
+                try {
+                  writeStabilityLog({ level: 'info', source: 'MHDDOSProxy:DEBUG', event: 'parse-debug', details: debugEntry })
+                } catch {
+                  // ignore write errors
+                }
               } catch (err) {
                 // ignore debug errors
               }
